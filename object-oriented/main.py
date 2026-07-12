@@ -1,23 +1,16 @@
+import json
+from pathlib import Path
+
 from vending_machine import *
 
-INIT_DRINK = { # { key: [name, price, quantity] }
-    1:  ["레쓰비 마일드 커피", 600, 10],
-    2:  ["게토레이 레몬", 800, 10],
-    3:  ["밀키스", 800, 10],
-    4:  ["립톤 아이스티 복숭아", 1000, 10],
-    5:  ["칠성사이다", 1000, 10],
-    6:  ["트레비 라임", 1000, 10],
-    7:  ["트로피카나 스파클링 사과", 1000, 10],
-    8:  ["옥수수수염차", 1300, 10],
-    9:  ["데일리-C 레몬워터 비타민C 1000", 1500, 10],
-    10: ["칸타타 콘트라베이스 콜드브루 블랙", 2000, 0]
-}
+SEED_PATH = Path(__file__).resolve().parent / "data" / "seed.json"
 
-INIT_CASH = { # { key: [face_value, quantity] }
-    1: [ 100, 100],
-    2: [ 500, 100],
-    3: [1000, 100]
-}
+# 시드 데이터 로딩 (JSON의 문자열 키를 정수 키로 변환)
+def load_seed(path):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    init_drink = {int(key): value for key, value in data["drinks"].items()}
+    init_cash = {int(key): value for key, value in data["cash"].items()}
+    return init_drink, init_cash
 
 # 로그인 함수 (비밀번호: /admin)
 def login():
@@ -28,7 +21,7 @@ def login():
     print_line()
     return password == "/admin"
 
-vm = VendingMachine(INIT_DRINK, INIT_CASH)
-
-is_admin = login()
-vm.start(is_admin)
+if __name__ == "__main__":
+    init_drink, init_cash = load_seed(SEED_PATH)
+    vm = VendingMachine(init_drink, init_cash)
+    vm.start(login())

@@ -36,7 +36,14 @@ vending-machine/
 │   ├── basic.py
 │   ├── drink.py
 │   ├── cash.py
-│   └── vending_machine.py
+│   ├── vending_machine.py
+│   └── data/
+│       └── seed.json    # 음료·현금 초기 데이터 (코드와 분리)
+├── simple/              # 최소 버전 (단일 파일)
+│   └── main.py
+├── tests/               # 테이블 기반 단위 테스트
+│   ├── test_vending_machine.py
+│   └── test_simple.py
 └── assets/              # 이미지 자료
 ```
 
@@ -225,11 +232,12 @@ def pay(d, k, c):  # 모든 함수가 d, k, c를 받음
 #### 구성
 | 파일 | 기능 |
 |:---:|:---|
-| `main.py` | 진입점, 로그인 처리 |
+| `main.py` | 진입점, 시드 로딩(`data/seed.json`), 로그인 처리 |
 | `basic.py` | 공통 유틸리티 함수 |
 | `drink.py` | Drink 클래스 |
 | `cash.py` | Cash 클래스 |
-| `vending_machine.py` | VendingMachine 클래스 |
+| `vending_machine.py` | VendingMachine 클래스 (상태 머신 + 테이블 기반 메뉴) |
+| `data/seed.json` | 음료·현금 초기 데이터 (코드와 분리) |
 
 #### 클래스 설계
 
@@ -268,7 +276,7 @@ class Cash:
         return self.__face_value * self.__quantity
 ```
 
-**VendingMachine 클래스** - 전체 시스템 관리
+**VendingMachine 클래스** - 전체 시스템 관리 (테이블 기반 설계)
 ```python
 class VendingMachine:
     def __init__(self, init_drink, init_cash):
@@ -280,17 +288,35 @@ class VendingMachine:
         drink.set_quantity(drink.get_quantity() - 1)
         return balance - drink.get_price()
 
+    # 사용자 모드: 상태 -> 핸들러 테이블이 흐름을 결정 (state machine)
     def consumer_loop(self):
-        # 사용자 모드 메인 루프
+        handlers = {
+            "IDLE": self.state_idle,     # 상품 목록 출력
+            "INSERT": self.state_insert, # 현금 투입
+            "SELECT": self.state_select, # 음료 선택·결제
+            "RETURN": self.state_return, # 잔액 반환
+        }
+        state = "IDLE"
+        while state != "END":
+            state = handlers[state]()  # 각 핸들러가 다음 상태를 반환
 
+    # 관리자 모드: 메뉴 테이블 하나가 출력과 실행을 모두 담당
     def admin_loop(self):
-        # 관리자 모드 메인 루프
+        menu_table = {  # { 번호: (라벨, 동작) }, 동작이 None이면 종료
+            1: ("음료 재고 보충", self.edit_stock),
+            2: ("음료 이름 수정", self.edit_name),
+            # ...
+            7: ("관리자 모드 종료", None),
+        }
+        # 하나의 테이블로 메뉴 출력과 동작 디스패치를 함께 처리
 ```
 
 #### 개선점
 - 명확한 메서드명으로 가독성 향상 (`drink.get_price()` vs `d[k][1]`)
 - 데이터와 로직이 함께 있어 응집도 높음
 - 변경 영향 범위가 클래스 내부로 제한됨
+- **테이블 기반 설계**: 상태·메뉴가 데이터(딕셔너리)로 표현되어, 흐름 추가/변경이 표 한 줄 수정으로 끝남
+- **데이터 분리**: 초기 데이터를 `data/seed.json`으로 분리해 코드 수정 없이 상품·현금 구성 변경 가능
 
 ### 4.3 동일 기능의 코드 비교
 
@@ -350,9 +376,20 @@ cd procedural && python3 main.py
 
 # 객체지향 버전
 cd object-oriented && python3 main.py
+
+# 최소 버전
+cd simple && python3 main.py
 ```
 
-### 5.2 사용자 모드
+### 5.2 단위 테스트
+
+`tests/`에 테이블 기반(table-driven) 테스트가 있다. 구매 가능 여부, 고액권 우선 잔돈 반환, 시드 로딩을 케이스 표로 검증한다.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+### 5.3 사용자 모드
 
 <p align="center">
   <img src="assets/test-user-1.png" width="500" alt="초기 화면">
@@ -370,7 +407,7 @@ cd object-oriented && python3 main.py
 - 잔액/재고 부족 상품 구매 불가
 - 고액권 순서로 잔돈 자동 계산
 
-### 5.3 관리자 모드
+### 5.4 관리자 모드
 
 `/admin` 입력으로 진입
 
@@ -429,11 +466,16 @@ cd object-oriented && python3 main.py
 3. **객체지향의 장점**: 코드 가독성, 유지보수성, 확장성 향상
 4. **객체지향의 고려사항**: 초기 설계에 더 많은 시간 필요
 
-### 6.3 향후 개선 방향
+### 6.3 적용 완료
+
+- 상태 머신 적용 (사용자 모드 상태 전이 테이블)
+- 테이블 기반 관리자 메뉴 (출력·디스패치 통합)
+- 초기 데이터 분리 (`data/seed.json`)
+- 테이블 기반 단위 테스트 추가
+
+### 6.4 향후 개선 방향
 
 - 추상 클래스/인터페이스 도입 (Payment 추상화 등)
-- 상태 패턴 적용 (State Machine)
-- 단위 테스트 추가
 - GUI/웹 인터페이스 확장
 
 ---
